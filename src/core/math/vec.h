@@ -3,6 +3,7 @@
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/quaternion.hpp"
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/hash.hpp"
 
@@ -33,8 +34,10 @@ inline Mat4 Perspective(float fovy, float aspect, float near, float far) { retur
 template <int L, typename T, glm::qualifier Q>
 glm::vec<L, T, Q> Normalize(glm::vec<L, T, Q> const &x) { return glm::normalize(x); }
 
-inline float Radians(float degrees) { return glm::radians(degrees); }
+template <typename T>
+T Cross(T const &x, T const &y) { return glm::cross(x, y); }
 
+inline float Radians(float degrees) { return glm::radians(degrees); }
 
 inline Archive &operator<<(Archive &Ar, Vec3 &V)
 {

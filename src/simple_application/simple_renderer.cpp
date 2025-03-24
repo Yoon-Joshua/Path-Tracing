@@ -9,8 +9,6 @@
 #include "render_core/static_states.h"
 
 extern std::vector<uint8> process_shader(std::string spvFilename, ShaderFrequency freq);
-const int WIDTH = 1600;
-const int HEIGHT = 1200;
 
 SimpleRenderer::SimpleRenderer(SimpleScene &s) : scene(s) {}
 
@@ -24,11 +22,6 @@ void SimpleRenderer::Prepare(RHICommandListBase &immediate)
         .SetClearValue(ClearValueBinding(0, 0));
     depth = CreateTexture(immediate, texDesc);
 
-    // 相机参数
-    CameraInfo perCamera;
-    perCamera.model = Rotate(Mat4(1), Radians(0), Vec3(0, 0, 1));
-    perCamera.view = Lookat(Vec3(2, 2, 2), Vec3(0, 0, 0), Vec3(0, 1, 0));
-    perCamera.proj = Perspective(Radians(60), (float)WIDTH / (float)HEIGHT, 100, 0.1);
     UniformBufferLayoutInitializer UBInit;
     UBInit.BindingFlags = UniformBufferBindingFlags::Shader;
     UBInit.ConstantBufferSize = sizeof(CameraInfo);
@@ -38,11 +31,15 @@ void SimpleRenderer::Prepare(RHICommandListBase &immediate)
     UBInit.ComputeHash();
     auto UBLayout = std::make_shared<const UniformBufferLayout>(UBInit);
     ub = CreateUniformBuffer(0, UBLayout, UniformBufferUsage::UniformBuffer_MultiFrame, UniformBufferValidation::None);
-    rhi->UpdateUniformBuffer(immediate, ub.get(), &perCamera);
+}
+
+void SimpleRenderer::Update(RHICommandListBase &immediate, Camera& camera){
+    CameraInfo info = camera.GetCameraInfo();
+    rhi->UpdateUniformBuffer(immediate, ub.get(), &info);
     immediate.GetContext().SubmitCommandsHint();
 }
 
-void SimpleRenderer::Render(CommandContext *context, SimpleScene &scene, Viewport *viewport)
+void SimpleRenderer::Render(CommandContext *context, SimpleScene &scene, Camera &camera, Viewport *viewport)
 {
     GraphicsPipelineStateInitializer graphicsPSOInit;
 

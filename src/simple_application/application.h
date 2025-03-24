@@ -2,4 +2,7 @@
 
 #include <GLFW/glfw3.h>
 
-extern void RunSimpleApplication(GLFWwindow*);
+extern const int WIDTH;
+extern const int HEIGHT;
+
+void RunSimpleApplication(GLFWwindow*);

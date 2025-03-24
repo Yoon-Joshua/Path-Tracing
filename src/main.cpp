@@ -48,8 +48,8 @@ std::vector<uint8> readFile(const std::string &filename)
     return buffer;
 }
 
-#define WIDTH 1600
-#define HEIGHT 1200
+#define WIDTH_ 1600
+#define HEIGHT_ 1200
 
 struct PerCamera
 {
@@ -65,7 +65,7 @@ int RHIGraphicTest()
     // 固定窗口大小
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Xi", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(WIDTH_, HEIGHT_, "Xi", nullptr, nullptr);
     glfwSetFramebufferSizeCallback(window, OnSizeChanged);
 
     RHIInit();
@@ -73,7 +73,7 @@ int RHIGraphicTest()
     dummy.SwitchPipeline(RHIPipeline::Graphics);
     {
         CommandContext *context = GetDefaultContext();
-        std::shared_ptr<Viewport> viewport = CreateViewport(window, WIDTH, HEIGHT, false, PixelFormat::PF_B8G8R8A8);
+        std::shared_ptr<Viewport> viewport = CreateViewport(window, WIDTH_, HEIGHT_, false, PixelFormat::PF_B8G8R8A8);
         drawingViewport = viewport.get();
 
         std::array<uint32, 12> indices = {4, 5, 6, 4, 6, 7,
@@ -179,7 +179,7 @@ int RHIGraphicTest()
         texDesc.SetFormat(PF_D24)
             .SetInitialState(Access::DSVRead | Access::DSVWrite)
             .SetFlags(TexCreate_DepthStencilTargetable)
-            .SetExtent(WIDTH, HEIGHT)
+            .SetExtent(WIDTH_, HEIGHT_)
             .SetClearValue(ClearValueBinding(0, 0));
         auto depth = CreateTexture(dummy, texDesc);
 
@@ -287,6 +287,7 @@ int RHIComputeTest()
 }
 
 #include "simple_application/application.h"
+#include "simple_application/interaction.h"
 int main()
 {
     glfwInit();
@@ -295,6 +296,7 @@ int main()
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Xi", nullptr, nullptr);
     glfwSetFramebufferSizeCallback(window, OnSizeChanged);
+    SetupCallback(window);
 
     RHIInit();
     RunSimpleApplication(window);

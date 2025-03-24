@@ -118,8 +118,6 @@ void CommandListContext::EndFrame()
     // device->GetDescriptorPoolsManager().GC();
 
     // device->ReleaseUnusedOcclusionQueryPools();
-
-    // device->GetPipelineStateCache()->TickLRU();
 }
 
 CommandListContextImmediate::CommandListContextImmediate(RHI *InRHI, Device *InDevice, Queue *InQueue)

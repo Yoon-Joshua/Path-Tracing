@@ -1,6 +1,8 @@
 #include "application.h"
+#include "camera.h"
 #include "simple_scene.h"
 #include "simple_renderer.h"
+#include "simple_timer.h"
 #include "definitions.h"
 #include "core/math/vec.h"
 #include "RHI/RHICommandList.h"
@@ -217,170 +219,37 @@ extern std::vector<uint8> process_shader(std::string filename, ShaderFrequency f
 
 void RunSimpleApplication(GLFWwindow *window)
 {
+    SimpleTimer timer;
+
     RHICommandListBase &immediate = RHICommandListExecutor::GetImmediateCommandList();
     immediate.SwitchPipeline(RHIPipeline::Graphics);
 
     SimpleScene scene;
     SimpleRenderer renderer(scene);
+    Camera camera;
     scene.AddStaticMesh(LoadWavefrontStaticMesh("assets/cube.obj", immediate));
-    {
-        CommandContext *context = GetDefaultContext();
-        std::shared_ptr<Viewport> viewport = CreateViewport(window, WIDTH, HEIGHT, false, PixelFormat::PF_B8G8R8A8);
-        drawingViewport = viewport.get();
 
-        renderer.Prepare(immediate);
-        while (!glfwWindowShouldClose(window))
-        {
-            glfwPollEvents();
-            context->BeginDrawingViewport(viewport);
-            context->BeginFrame();
-
-            renderer.Render(context, scene, viewport.get());
-
-            context->EndFrame();
-            context->EndDrawingViewport(viewport.get(), false);
-        }
-        context->SubmitCommandsHint();
-        return;
-    }
-
-    // 准备资源
     CommandContext *context = GetDefaultContext();
     std::shared_ptr<Viewport> viewport = CreateViewport(window, WIDTH, HEIGHT, false, PixelFormat::PF_B8G8R8A8);
     drawingViewport = viewport.get();
 
-    std::array<uint32, 12> indices = {4, 5, 6, 4, 6, 7,
-                                      0, 1, 2, 0, 2, 3};
-    std::array<float, 24> position = {0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5,
-                                      0.5, -0.5, 0.6, 0.5, 0.5, 0.6, -0.5, 0.5, 0.6, -0.5, -0.5, 0.6};
-    std::array<float, 24> color = {1.0f, 0.0f, 0.0f, 0.f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1, 1, 1,
-                                   1.0f, 0.0f, 0.0f, 1.f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1, 0, 0};
-    std::array<float, 16> uv = {0, -0, 0, 1, 1, 0, 1, 1,
-                                0, -0, 0, 1, 1, 0, 1, 1};
-
-    BufferDesc desc(position.size() * sizeof(float), sizeof(float), BufferUsageFlags::VertexBuffer);
-    ResourceCreateInfo ci{};
-    auto positionBuffer = CreateBuffer(desc, Access::CopyDest | Access::VertexOrIndexBuffer, ci);
-    auto colorBuffer = CreateBuffer(desc, Access::CopyDest | Access::VertexOrIndexBuffer, ci);
-
-    desc = BufferDesc(uv.size() * sizeof(float), sizeof(float), BufferUsageFlags::VertexBuffer);
-    auto texCoordBuffer = CreateBuffer(desc, Access::CopyDest | Access::VertexOrIndexBuffer, ci);
-
-    desc = BufferDesc(indices.size() * sizeof(uint32), sizeof(uint32), BufferUsageFlags::IndexBuffer);
-    auto indexBuffer = CreateBuffer(desc, Access::CopyDest | Access::VertexOrIndexBuffer, ci);
-
-    void *mapped;
-
-    mapped = LockBuffer_BottomOfPipe(immediate, indexBuffer.get(), 0, indexBuffer->GetSize(), ResourceLockMode::RLM_WriteOnly);
-    memcpy(mapped, indices.data(), indices.size() * sizeof(uint32));
-    UnlockBuffer_BottomOfPipe(immediate, indexBuffer.get());
-
-    mapped = LockBuffer_BottomOfPipe(immediate, positionBuffer.get(), 0, positionBuffer->GetSize(), ResourceLockMode::RLM_WriteOnly);
-    memcpy(mapped, position.data(), position.size() * sizeof(float));
-    UnlockBuffer_BottomOfPipe(immediate, positionBuffer.get());
-
-    mapped = LockBuffer_BottomOfPipe(immediate, colorBuffer.get(), 0, colorBuffer->GetSize(), ResourceLockMode::RLM_WriteOnly);
-    memcpy(mapped, color.data(), color.size() * sizeof(float));
-    UnlockBuffer_BottomOfPipe(immediate, colorBuffer.get());
-
-    mapped = LockBuffer_BottomOfPipe(immediate, texCoordBuffer.get(), 0, texCoordBuffer->GetSize(), ResourceLockMode::RLM_WriteOnly);
-    memcpy(mapped, uv.data(), uv.size() * sizeof(float));
-    UnlockBuffer_BottomOfPipe(immediate, texCoordBuffer.get());
-
-    // 创建PSO
-    GraphicsPipelineStateInitializer graphicsPSOInit;
-
-    graphicsPSOInit.RenderTargetsEnabled = 1;
-    graphicsPSOInit.RenderTargetFormats[0] = PF_B8G8R8A8;
-    graphicsPSOInit.RenderTargetFlags[0] = TextureCreateFlags::RenderTargetable;
-    graphicsPSOInit.NumSamples = 1;
-
-    graphicsPSOInit.DepthStencilTargetFormat = PF_D24;
-
-    graphicsPSOInit.SubpassHint = SubpassHint::None;
-    graphicsPSOInit.SubpassIndex = 0;
-
-    graphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI().get();
-    graphicsPSOInit.DepthStencilState = TStaticDepthStencilState<>::GetRHI().get();
-
-    graphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI().get();
-    graphicsPSOInit.PrimitiveType = PT_TriangleList;
-
-    VertexDeclarationElementList elements;
-    elements.push_back(VertexElement(0, 0, VET_Float3, 0, 12));
-    elements.push_back(VertexElement(1, 0, VET_Float3, 1, 12));
-    elements.push_back(VertexElement(2, 0, VET_Float2, 2, 8));
-    graphicsPSOInit.BoundShaderState.VertexDeclarationRHI = PipelineStateCache::GetOrCreateVertexDeclaration(elements);
-    graphicsPSOInit.BoundShaderState.VertexShaderRHI = CreateVertexShader(process_shader("shaders/test_cube.vert.spv", SF_Vertex));
-    graphicsPSOInit.BoundShaderState.PixelShaderRHI = CreatePixelShader(process_shader("shaders/test_cube.frag.spv", SF_Pixel));
-
-    // 相机参数
-    CameraInfo perCamera;
-    perCamera.model = Rotate(Mat4(1), Radians(0), Vec3(0, 0, 1));
-    perCamera.view = Lookat(Vec3(0, 0, -1), Vec3(0, 0, 0), Vec3(0, 1, 0));
-    perCamera.proj = Perspective(Radians(60), (float)WIDTH / (float)HEIGHT, 100, 0.1);
-    UniformBufferLayoutInitializer UBInit;
-    UBInit.BindingFlags = UniformBufferBindingFlags::Shader;
-    UBInit.ConstantBufferSize = sizeof(CameraInfo);
-    UBInit.Resources.push_back({offsetof(CameraInfo, model), UniformBufferBaseType::UBMT_FLOAT32});
-    UBInit.Resources.push_back({offsetof(CameraInfo, view), UniformBufferBaseType::UBMT_FLOAT32});
-    UBInit.Resources.push_back({offsetof(CameraInfo, proj), UniformBufferBaseType::UBMT_FLOAT32});
-    UBInit.ComputeHash();
-    auto UBLayout = std::make_shared<const UniformBufferLayout>(UBInit);
-    auto ub = CreateUniformBuffer(0, UBLayout, UniformBufferUsage::UniformBuffer_MultiFrame, UniformBufferValidation::None);
-    rhi->UpdateUniformBuffer(immediate, ub.get(), &perCamera);
-    context->SubmitCommandsHint();
-
-    // 纹理
-    int x, y, comp;
-    stbi_uc *sourceData = stbi_load("assets/viking_room.png", &x, &y, &comp, STBI_rgb_alpha);
-    for (int i = 0; i < x * y; ++i)
-    {
-        std::swap(sourceData[i * STBI_rgb_alpha + 0], sourceData[i * STBI_rgb_alpha + 2]);
-    }
-    TextureCreateDesc texDesc = TextureCreateDesc::Create2D("BaseColor", x, y, PF_B8G8R8A8)
-                                    .SetInitialState(Access::SRVGraphics)
-                                    .SetFlags(TexCreate_SRGB | TexCreate_ShaderResource);
-    auto tex = CreateTexture(immediate, texDesc);
-    UpdateTextureRegion2D region(0, 0, 0, 0, x, y);
-    UpdateTexture2D(immediate, tex.get(), 0, region, x * STBI_rgb_alpha, sourceData);
-    stbi_image_free(sourceData);
-    SamplerStateInitializer samplerInit(SF_Point);
-    auto sampler = CreateSamplerState(samplerInit);
-
-    // 深度图
-    texDesc.SetFormat(PF_D24)
-        .SetInitialState(Access::DSVRead | Access::DSVWrite)
-        .SetFlags(TexCreate_DepthStencilTargetable)
-        .SetExtent(WIDTH, HEIGHT)
-        .SetClearValue(ClearValueBinding(0, 0));
-    auto depth = CreateTexture(immediate, texDesc);
-
+    renderer.Prepare(immediate);
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
+
+        double deltaTime = timer.tick();
+        camera.Update(deltaTime);
+        renderer.Update(immediate,camera);
+
         context->BeginDrawingViewport(viewport);
         context->BeginFrame();
 
-        RenderPassInfo RPInfo(GetViewportBackBuffer(viewport.get()).get(), RenderTargetActions::Clear_Store,
-                              depth.get(), DepthStencilTargetActions::ClearDepthStencil_DontStoreDepthStencil);
-        context->BeginRenderPass(RPInfo, "no name");
-
-        auto *pso = CreateGraphicsPipelineState(graphicsPSOInit);
-        context->SetGraphicsPipelineState(pso, 0, false);
-        context->SetShaderUniformBuffer(graphicsPSOInit.BoundShaderState.VertexShaderRHI, 0, ub.get());
-        context->SetShaderTexture(graphicsPSOInit.BoundShaderState.PixelShaderRHI, 0, tex.get());
-        context->SetShaderSampler(graphicsPSOInit.BoundShaderState.PixelShaderRHI, 0, sampler.get());
-
-        context->SetStreamSource(0, positionBuffer.get(), 0);
-        context->SetStreamSource(1, colorBuffer.get(), 0);
-        context->SetStreamSource(2, texCoordBuffer.get(), 0);
-        context->DrawIndexedPrimitive(indexBuffer.get(), 0, 0, 8, 0, 4, 1);
-
-        context->EndRenderPass();
+        renderer.Render(context, scene, camera, viewport.get());
 
         context->EndFrame();
         context->EndDrawingViewport(viewport.get(), false);
     }
     context->SubmitCommandsHint();
+    return;
 }

@@ -4,13 +4,6 @@
 
 #include <memory>
 
-struct CameraInfo
-{
-    Mat4 model;
-    Mat4 view;
-    Mat4 proj;
-};
-
 struct SimpleVertex
 {
     Vec3 position;
