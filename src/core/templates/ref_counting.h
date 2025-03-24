@@ -11,3 +11,14 @@ public:
         return true;
     }
 };
+
+
+/** A virtual interface for ref counted objects to implement. */
+class IRefCountedObject
+{
+public:
+	virtual ~IRefCountedObject() { }
+	virtual uint32 AddRef() = 0;
+	virtual uint32 Release() = 0;
+	virtual uint32 GetRefCount() = 0;
+};

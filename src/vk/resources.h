@@ -144,7 +144,6 @@ private:
     TextureView textureView;
 };
 
-// 64
 /** This represents a vertex declaration that hasn't been combined with a specific shader to create a bound shader. */
 class VulkanVertexDeclaration : public VertexDeclaration
 {
@@ -158,23 +157,22 @@ public:
     virtual uint32 GetPrecachePSOHash() const final override { return HashNoStrides; }
 };
 
-// 87
 class ShaderModule : public ThreadSafeRefCountedObject
 {
     static Device *device;
-    VkShaderModule actualShaderModule;
+    VkShaderModule handle;
 
 public:
-    ShaderModule(Device *DeviceIn, VkShaderModule ShaderModuleIn) : actualShaderModule(ShaderModuleIn)
+    ShaderModule(Device *DeviceIn, VkShaderModule ShaderModuleIn) : handle(ShaderModuleIn)
     {
         check(DeviceIn && (device == DeviceIn || !device));
         device = DeviceIn;
     }
     virtual ~ShaderModule();
-    VkShaderModule &GetVkShaderModule() { return actualShaderModule; }
+    VkShaderModule &GetVkShaderModule() { return handle; }
 };
 
-class VulkanShader //: public IRefCountedObject
+class VulkanShader : public IRefCountedObject
 {
 public:
     VulkanShader(Device *InDevice, ShaderFrequency InFrequency)
@@ -187,29 +185,19 @@ public:
     std::shared_ptr<ShaderModule> GetOrCreateHandle(const VulkanPipelineLayout *Layout, uint32 LayoutHash)
     {
         /* FScopeLock Lock(&VulkanShaderModulesMapCS); */
-        auto it = ShaderModules.find(LayoutHash);
-        std::shared_ptr<ShaderModule> *Found = it == ShaderModules.end() ? nullptr : &it->second;
-        if (Found)
-            return *Found;
+        if (module)
+            return module;
 
-        return CreateHandle(Layout, LayoutHash);
+        return CreateHandle();
     }
 
     std::shared_ptr<ShaderModule> GetOrCreateHandle(const GfxPipelineDesc &Desc, const VulkanPipelineLayout *Layout, uint32 LayoutHash)
     {
         /* FScopeLock Lock(&VulkanShaderModulesMapCS); */
-        if (NeedsSpirvInputAttachmentPatching(Desc))
-        {
-            LayoutHash = HashCombine(LayoutHash, 1);
-        }
+        if (module)
+            return module;
 
-        auto it = ShaderModules.find(LayoutHash);
-        std::shared_ptr<ShaderModule> *Found = it == ShaderModules.end() ? nullptr : &it->second;
-
-        if (Found)
-            return *Found;
-
-        return CreateHandle(Desc, Layout, LayoutHash);
+        return CreateHandle();
     }
 
     // Name should be pointing to "main_"
@@ -240,13 +228,10 @@ public:
         std::vector<uint32> GetCodeView() { return CodeView; }
     };
 
-    SpirvCode GetPatchedSpirvCode(const GfxPipelineDesc &Desc, const VulkanPipelineLayout *Layout);
-
 protected:
     uint64 shaderKey;
-    /** External bindings for this shader. */
     ShaderHeader CodeHeader;
-    std::unordered_map<uint32, std::shared_ptr<ShaderModule>> ShaderModules;
+    std::shared_ptr<ShaderModule> module = nullptr;
     const ShaderFrequency Frequency;
 
     ShaderResourceTable ShaderResourceTable;
@@ -268,10 +253,7 @@ protected:
     void Setup(ShaderHeader &&header, SpirvContainer &&spirv, uint64 shaderKey);
     Device *device;
 
-    std::shared_ptr<ShaderModule> CreateHandle(const VulkanPipelineLayout *Layout, uint32 LayoutHash);
-    std::shared_ptr<ShaderModule> CreateHandle(const GfxPipelineDesc &Desc, const VulkanPipelineLayout *Layout, uint32 LayoutHash);
-
-    bool NeedsSpirvInputAttachmentPatching(const GfxPipelineDesc &Desc) const;
+    std::shared_ptr<ShaderModule> CreateHandle();
 
     friend class CommandListContext;
     friend class PipelineStateCacheManager;
@@ -291,6 +273,20 @@ public:
     {
         StaticFrequency = ShaderType
     };
+
+    // IRefCountedObject interface.
+    virtual uint32 AddRef() override final
+    {
+        return RHIResource::AddRef();
+    }
+    virtual uint32 Release() override final
+    {
+        return RHIResource::Release();
+    }
+    virtual uint32 GetRefCount() override final
+    {
+        return RHIResource::GetRefCount();
+    }
 };
 typedef TVulkanBaseShader<VertexShader, SF_Vertex> VulkanVertexShader;
 typedef TVulkanBaseShader<PixelShader, SF_Pixel> VulkanPixelShader;

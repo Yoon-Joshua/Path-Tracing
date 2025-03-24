@@ -160,9 +160,6 @@ void Device::InitGPU()
         computeContext = immediateContext;
     }
 
-    std::vector<std::string> cacheFilename;
-    PipelineStateCache->InitAndLoad(cacheFilename);
-
     // Setup default resource
     {
         SamplerStateInitializer Default(SF_Point);

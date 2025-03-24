@@ -28,14 +28,6 @@ enum class SingleThreadedPSOCreateMode
 // 3: force singlethreaded creation of non-precompile PSOs only.
 static int32 GVulkanPSOForceSingleThreaded = (int32)SingleThreadedPSOCreateMode::All;
 
-/// 1: Force all created PSOs to be evicted immediately. Only for debugging
-int32 CVarPipelineDebugForceEvictImmediately = 0;
-
-// Pipeline LRU cache
-// 0: disable LRU
-// 1: Enable LRU
-int32 CVarEnableLRU = 0;
-
 void GetVulkanShaders(const BoundShaderStateInput &BSI, VulkanShader *OutShaders[ShaderStage::NumStages])
 {
     memset(OutShaders, 0, ShaderStage::NumStages * sizeof(*OutShaders));
@@ -83,7 +75,6 @@ VulkanComputePipeline::~VulkanComputePipeline()
     }
 }
 
-// 686
 Archive &operator<<(Archive &Ar, GfxPipelineDesc::BlendAttachment &Attachment)
 {
     // Modify VERSION if serialization changes
@@ -122,7 +113,6 @@ void GfxPipelineDesc::BlendAttachment::WriteInto(VkPipelineColorBlendAttachmentS
     Out.colorWriteMask = (VkColorComponentFlags)ColorWriteMask;
 }
 
-// 725
 void DescriptorSetLayoutBinding::ReadFrom(const VkDescriptorSetLayoutBinding &InState)
 {
     Binding = InState.binding;
@@ -148,7 +138,6 @@ Archive &operator<<(Archive &Ar, DescriptorSetLayoutBinding &Binding)
     return Ar;
 }
 
-// 752
 void GfxPipelineDesc::VertexBinding::ReadFrom(const VkVertexInputBindingDescription &InState)
 {
     Binding = InState.binding;
@@ -172,7 +161,6 @@ Archive &operator<<(Archive &Ar, GfxPipelineDesc::VertexBinding &Binding)
     return Ar;
 }
 
-// 775
 void GfxPipelineDesc::VertexAttribute::ReadFrom(const VkVertexInputAttributeDescription &InState)
 {
     Binding = InState.binding;
@@ -323,7 +311,6 @@ Archive &operator<<(Archive &Ar, GfxPipelineDesc::FRenderTargets::FAttachmentRef
     return Ar;
 }
 
-// 922
 void GfxPipelineDesc::FRenderTargets::FStencilAttachmentRef::ReadFrom(const VkAttachmentReferenceStencilLayout &InState)
 {
     Layout = (uint64)InState.stencilLayout;
@@ -383,7 +370,6 @@ Archive &operator<<(Archive &Ar, GfxPipelineDesc::FRenderTargets::FAttachmentDes
     return Ar;
 }
 
-// 981
 void GfxPipelineDesc::FRenderTargets::StencilAttachmentDesc::ReadFrom(const VkAttachmentDescriptionStencilLayout &InState)
 {
     InitialLayout = (uint64)InState.stencilInitialLayout;
@@ -404,7 +390,6 @@ Archive &operator<<(Archive &Ar, GfxPipelineDesc::FRenderTargets::StencilAttachm
     return Ar;
 }
 
-// 1002
 void GfxPipelineDesc::FRenderTargets::ReadFrom(const RenderTargetLayout &RTLayout)
 {
     NumAttachments = RTLayout.NumAttachmentDescriptions;
@@ -567,37 +552,30 @@ VulkanGraphicsPipelineState::VulkanGraphicsPipelineState(Device *device, const G
 #endif
     VulkanShaders[ShaderStage::Pixel] = static_cast<VulkanPixelShader *>(PSOInitializer_.BoundShaderState.PixelShaderRHI);
 
-    /*for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumStages; ShaderStageIndex++)
+    for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumStages; ShaderStageIndex++)
     {
         if (VulkanShaders[ShaderStageIndex] != nullptr)
         {
             VulkanShaders[ShaderStageIndex]->AddRef();
         }
-    }*/
+    }
 
     PrecacheKey = RHI::Get().ComputePrecachePSOHash(PSOInitializer_);
 }
 
 VulkanGraphicsPipelineState::~VulkanGraphicsPipelineState()
 {
-    // 所有shader由shader factory负责回收
+    for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumStages; ShaderStageIndex++)
+    {
+        if (VulkanShaders[ShaderStageIndex] != nullptr)
+        {
+            VulkanShaders[ShaderStageIndex]->Release();
+        }
+    }
     device->PipelineStateCache->NotifyDeletedGraphicsPSO(this);
 }
 
-void PipelineStateCacheManager::InitAndLoad(const std::vector<std::string> &CacheFilenames)
-{
-    for (const std::string &s : CacheFilenames)
-    {
-        printf("Cache Filename: %s\n", s.c_str());
-    }
-}
-
-PipelineStateCacheManager::PipelineStateCacheManager(Device *InDevice)
-    : device(InDevice), bEvictImmediately(false), bPrecompilingCacheLoadedFromFile(false)
-{
-    bUseLRU = 0;
-    LRUUsedPipelineMax = 0;
-}
+PipelineStateCacheManager::PipelineStateCacheManager(Device *InDevice) : device(InDevice) {}
 
 PipelineStateCacheManager::~PipelineStateCacheManager()
 {
@@ -827,10 +805,9 @@ void PipelineStateCacheManager::DestroyCache()
         VulkanGraphicsPipelineState *Pipeline = Pair.second;
         printf("Leaked PSO Handle %d: RefCount=%d\n", Pipeline, Pipeline->GetRefCount());
     }
-    /* LRU2SizeList.Reset(); */
 
     // Compute pipelines already deleted...
-    /* ComputePipelineEntries.Reset(); */
+    ComputePipelineEntries.clear();
 }
 
 // 1705
@@ -884,15 +861,8 @@ void PipelineStateCacheManager::NotifyDeletedGraphicsPSO(GraphicsPipelineState *
         VulkanGraphicsPipelineState **Contained = it == GraphicsPSOLockedMap.end() ? nullptr : &it->second;
         check(Contained && *Contained == PSO);
         VkPSO->bIsRegistered = false;
-        if (bUseLRU)
-        {
-            check(0);
-        }
-        else
-        {
-            (*Contained)->DeleteVkPipeline(true);
-            check(VkPSO->GetVulkanPipeline() == 0);
-        }
+        (*Contained)->DeleteVkPipeline(true);
+        check(VkPSO->GetVulkanPipeline() == 0);
         GraphicsPSOLockedMap.erase(Key);
     }
     else
@@ -907,7 +877,6 @@ void PipelineStateCacheManager::NotifyDeletedGraphicsPSO(GraphicsPipelineState *
     }
 }
 
-// 2042
 GraphicsPipelineState *PipelineStateCacheManager::CreateGraphicsPipelineState(const GraphicsPipelineStateInitializer &Initializer)
 {
     // Optional lock for PSO creation, GVulkanPSOForceSingleThreaded is used to work around driver bugs.
@@ -932,18 +901,12 @@ GraphicsPipelineState *PipelineStateCacheManager::CreateGraphicsPipelineState(co
 
     VulkanGraphicsPipelineState *NewPSO = 0;
     {
+        auto it = GraphicsPSOLockedMap.find(Key);
+        if (it != GraphicsPSOLockedMap.end())
         {
-            auto it = GraphicsPSOLockedMap.find(Key);
-            if (it != GraphicsPSOLockedMap.end())
-            {
-                VulkanGraphicsPipelineState **PSO = &it->second;
-                check(*PSO);
-                if (!bIsPrecache)
-                {
-                    LRUTouch(*PSO);
-                }
-                return *PSO;
-            }
+            VulkanGraphicsPipelineState **PSO = &it->second;
+            check(*PSO);
+            return *PSO;
         }
     }
 
@@ -978,7 +941,7 @@ GraphicsPipelineState *PipelineStateCacheManager::CreateGraphicsPipelineState(co
             const ShaderHeader &VSHeader = VS->GetCodeHeader();
             NewPSO->VertexInputState.Generate(static_cast<VulkanVertexDeclaration *>(Initializer.BoundShaderState.VertexDeclarationRHI), VSHeader.InOutMask);
 
-            if ((!bIsPrecache || !LRUEvictImmediately()) && 0 == CVarPipelineDebugForceEvictImmediately)
+            if (!bIsPrecache)
             {
                 // Create the pipeline
                 VulkanShader *VulkanShaders[ShaderStage::NumStages];
@@ -1006,18 +969,7 @@ GraphicsPipelineState *PipelineStateCacheManager::CreateGraphicsPipelineState(co
             else
             {
                 GraphicsPSOLockedMap.insert(std::pair(std::move(Key), NewPSO));
-                if (bUseLRU && NewPSO->VulkanPipeline != VK_NULL_HANDLE)
-                {
-                    // we add only created pipelines to the LRU
-                    /* FScopeLock LockRU(&LRUCS); */
-                    NewPSO->bIsRegistered = true;
-                    LRUTrim(NewPSO->PipelineCacheSize);
-                    LRUAdd(NewPSO);
-                }
-                else
-                {
-                    NewPSO->bIsRegistered = true;
-                }
+                NewPSO->bIsRegistered = true;
             }
         }
     }
@@ -1181,15 +1133,6 @@ bool PipelineStateCacheManager::CreateGfxPipelineFromEntry(VulkanGraphicsPipelin
     {
         printf("ERROR: Don't support VSR %s\n", __FILE__);
         exit(-1);
-        // 	const VkExtent2D FragmentSize = Device->GetBestMatchedFragmentSize(PSO->Desc.ShadingRate);
-        // 	VkFragmentShadingRateCombinerOpKHR PipelineToPrimitiveCombinerOperation = FragmentCombinerOpMap[(uint8)PSO->Desc.Combiner];
-
-        // 	ZeroVulkanStruct(PipelineFragmentShadingRate, VK_STRUCTURE_TYPE_PIPELINE_FRAGMENT_SHADING_RATE_STATE_CREATE_INFO_KHR);
-        // 	PipelineFragmentShadingRate.fragmentSize = FragmentSize;
-        // 	PipelineFragmentShadingRate.combinerOps[0] = PipelineToPrimitiveCombinerOperation;
-        // 	PipelineFragmentShadingRate.combinerOps[1] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR;		// @todo: This needs to be specified too.
-
-        // 	PipelineInfo.pNext = (void*)&PipelineFragmentShadingRate;
     }
 
     if (device->SupportsBindless())
@@ -1199,26 +1142,12 @@ bool PipelineStateCacheManager::CreateGfxPipelineFromEntry(VulkanGraphicsPipelin
 
     VkResult Result = VK_ERROR_INITIALIZATION_FAILED;
 
-    // double BeginTime = FPlatformTime::Seconds();
-
     Result = CreateVKPipeline(PSO, Shaders, PipelineInfo, bPrecompile);
 
     if (Result != VK_SUCCESS)
     {
-        // 	FString ShaderHashes = ShaderHashesToString(Shaders);
-
-        // 	UE_LOG(LogVulkanRHI, Error, TEXT("Failed to create graphics pipeline.\nShaders in pipeline: %s"), *ShaderHashes);
         return false;
     }
-
-    // double EndTime = FPlatformTime::Seconds();
-    // double Delta = EndTime - BeginTime;
-    // if (Delta > HitchTime)
-    // {
-    // 	UE_LOG(LogVulkanRHI, Verbose, TEXT("Hitchy gfx pipeline key CS (%.3f ms)"), (float)(Delta * 1000.0));
-    // }
-
-    // INC_DWORD_STAT(STAT_VulkanNumPSOs);
     return true;
 }
 
@@ -1314,18 +1243,12 @@ VulkanComputePipeline *PipelineStateCacheManager::CreateComputePipelineFromShade
 
     VkResult Result;
     {
-        /*         FScopedPipelineCache PipelineCacheShared = GlobalPSOCache.Get(EPipelineCacheAccess::Shared); */
         Result = vkCreateComputePipelines(device->GetInstanceHandle(), VK_NULL_HANDLE,
                                           1, &PipelineInfo, VULKAN_CPU_ALLOCATOR, &Pipeline->Pipeline);
     }
 
     if (Result != VK_SUCCESS)
-    {
         check(0);
-        /* std::string ComputeHash = Shader->GetHash().ToString();
-        UE_LOG(LogVulkanRHI, Error, TEXT("Failed to create compute pipeline.\nShaders in pipeline: CS: %s"), *ComputeHash);
-        Pipeline->SetValid(false); */
-    }
 
     Pipeline->Layout = ComputeLayout;
 
@@ -1342,40 +1265,6 @@ void PipelineStateCacheManager::NotifyDeletedComputePipeline(VulkanComputePipeli
     }
 }
 
-// 2487
-bool PipelineStateCacheManager::LRUEvictImmediately()
-{
-    return bEvictImmediately && CVarEnableLRU != 0;
-}
-
-void PipelineStateCacheManager::LRUTrim(uint32 nSpaceNeeded)
-{
-    if (!bUseLRU)
-    {
-        return;
-    }
-    check(0);
-}
-
-void PipelineStateCacheManager::LRUAdd(VulkanGraphicsPipelineState *PSO)
-{
-    if (!bUseLRU)
-    {
-        return;
-    }
-    check(0);
-}
-
-// 2546
-void PipelineStateCacheManager::LRUTouch(VulkanGraphicsPipelineState *PSO)
-{
-    if (!bUseLRU)
-    {
-        return;
-    }
-    printf("ERROR: Don't support LRU %s %d\n", __FILE__, __LINE__);
-}
-
 void VulkanGraphicsPipelineState::GetOrCreateShaderModules(std::shared_ptr<ShaderModule> (&ShaderModulesOUT)[ShaderStage::NumStages], VulkanShader *const *Shaders)
 {
     for (int32 Index = 0; Index < ShaderStage::NumStages; ++Index)
@@ -1389,7 +1278,6 @@ void VulkanGraphicsPipelineState::GetOrCreateShaderModules(std::shared_ptr<Shade
     }
 }
 
-// 2602
 void VulkanGraphicsPipelineState::DeleteVkPipeline(bool bImmediate)
 {
     if (VulkanPipeline != VK_NULL_HANDLE)
@@ -1404,11 +1292,4 @@ void VulkanGraphicsPipelineState::DeleteVkPipeline(bool bImmediate)
         }
         VulkanPipeline = VK_NULL_HANDLE;
     }
-
-    device->PipelineStateCache->LRUCheckNotInside(this);
-}
-
-void PipelineStateCacheManager::LRUCheckNotInside(VulkanGraphicsPipelineState *PSO)
-{
-    printf("Have not implement PipelineStateCacheManager::LRUCheckNotInside %s %d\n", __FILE__, __LINE__);
 }

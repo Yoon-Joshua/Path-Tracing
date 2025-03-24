@@ -224,7 +224,6 @@ void CommandListContext::SetGraphicsPipelineState(GraphicsPipelineState *Graphic
 	VulkanGraphicsPipelineState *Pipeline = static_cast<VulkanGraphicsPipelineState *>(GraphicsState);
 
 	PipelineStateCacheManager *PipelineStateCache = device->GetPipelineStateCache();
-	PipelineStateCache->LRUTouch(Pipeline);
 
 	CmdBuffer *CmdBuffer = commandBufferManager->GetActiveCmdBuffer();
 	bool bForceResetPipeline = !CmdBuffer->bHasPipeline;

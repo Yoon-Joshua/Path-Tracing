@@ -120,7 +120,7 @@ VulkanShader::~VulkanShader()
 void VulkanShader::PurgeShaderModules()
 {
     /* FScopeLock Lock(&VulkanShaderModulesMapCS); */
-    ShaderModules.clear();
+    module.reset();
 }
 
 VulkanShader::SpirvCode VulkanShader::GetSpirvCode(const SpirvContainer &Container)
@@ -156,44 +156,12 @@ static std::shared_ptr<ShaderModule> CreateShaderModule(Device *device, VulkanSh
     return ReturnPtr;
 }
 
-std::shared_ptr<ShaderModule> VulkanShader::CreateHandle(const VulkanPipelineLayout *Layout, uint32 LayoutHash)
+std::shared_ptr<ShaderModule> VulkanShader::CreateHandle()
 {
     /* FScopeLock Lock(&VulkanShaderModulesMapCS); */
     SpirvCode Spirv = GetSpirvCode(spirvContainer);
-
-    /* Layout->PatchSpirvBindings(Spirv, Frequency, CodeHeader); */
-    std::shared_ptr<ShaderModule> Module = CreateShaderModule(device, Spirv);
-    ShaderModules.insert({LayoutHash, Module});
-    return Module;
-}
-
-std::shared_ptr<ShaderModule> VulkanShader::CreateHandle(const GfxPipelineDesc &Desc, const VulkanPipelineLayout *Layout, uint32 LayoutHash)
-{
-    // FScopeLock Lock(&VulkanShaderModulesMapCS);
-    SpirvCode Spirv = GetPatchedSpirvCode(Desc, Layout);
-    std::shared_ptr<ShaderModule> Module = CreateShaderModule(device, Spirv);
-    ShaderModules.insert({LayoutHash, Module});
-    return Module;
-}
-
-VulkanShader::SpirvCode VulkanShader::GetPatchedSpirvCode(const GfxPipelineDesc &Desc, const VulkanPipelineLayout *Layout)
-{
-    SpirvCode Spirv = GetSpirvCode(spirvContainer);
-
-    // Layout->PatchSpirvBindings(Spirv, Frequency, CodeHeader);
-    if (NeedsSpirvInputAttachmentPatching(Desc))
-    {
-        check(0);
-        // Spirv = PatchSpirvInputAttachments(Spirv);
-    }
-
-    return Spirv;
-}
-
-bool VulkanShader::NeedsSpirvInputAttachmentPatching(const GfxPipelineDesc &Desc) const
-{
-    // return (Desc.RasterizationSamples > 1 && CodeHeader.InputAttachments.Num() > 0);
-    return false;
+    module = CreateShaderModule(device, Spirv);
+    return module;
 }
 
 Archive &operator<<(Archive &Ar, VulkanShader::SpirvContainer &spirvContainer)
@@ -213,7 +181,7 @@ Archive &operator<<(Archive &Ar, VulkanShader::SpirvContainer &spirvContainer)
 
 ShaderModule::~ShaderModule()
 {
-    device->GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::DeferredDeletionQueue2::EType::ShaderModule, actualShaderModule);
+    device->GetDeferredDeletionQueue().EnqueueResource(VulkanRHI::DeferredDeletionQueue2::EType::ShaderModule, handle);
 }
 Device *ShaderModule::device = nullptr;
 

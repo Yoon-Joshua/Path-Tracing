@@ -63,7 +63,6 @@ inline uint64 GetShaderKeyForGfxStage(const BoundShaderStateInput &BSI, ShaderSt
     return 0;
 }
 
-// 111
 struct DescriptorSetLayoutBinding
 {
     uint32 Binding;
@@ -395,32 +394,19 @@ struct GfxPipelineDesc
 };
 
 class VulkanComputePipeline;
+
 class PipelineStateCacheManager
 {
 public:
-    // Array of potential cache locations; first entries have highest priority. Only one cache file is loaded. If unsuccessful, tries next entry in the array.
-    void InitAndLoad(const std::vector<std::string> &CacheFilenames);
-    // 	void Save(const FString& CacheFilename);
-
     PipelineStateCacheManager(Device *InParent);
 
     ~PipelineStateCacheManager();
-
-    // 	void RebuildCache();
 
     VulkanComputePipeline *GetOrCreateComputePipeline(VulkanComputeShader *ComputeShader);
     void NotifyDeletedComputePipeline(VulkanComputePipeline *Pipeline);
 
 private:
-    // 	class FPipelineCache;
-
-    // 	/** Delegate handlers to track the ShaderPipelineCache precompile. */
-    // 	void OnShaderPipelineCacheOpened(FString const& Name, EShaderPlatform Platform, uint32 Count, const FGuid& VersionGuid, FShaderPipelineCache::FShaderCachePrecompileContext& ShaderCachePrecompileContext);
-    // 	void OnShaderPipelineCachePrecompilationComplete(uint32 Count, double Seconds, const FShaderPipelineCache::FShaderCachePrecompileContext& ShaderCachePrecompileContext);
-
     void CreateGfxEntry(const GraphicsPipelineStateInitializer &PSOInitializer, DescriptorSetsLayoutInfo &DescriptorSetLayoutInfo, GfxPipelineDesc *Desc);
-    // 	bool Load(const TArray<FString>& CacheFilenames, FPipelineCache& Cache);
-    // 	void SavePSOCache(const FString& CacheFilename, FPipelineCache& Cache);
     void DestroyCache();
 
     GraphicsPipelineState *CreateGraphicsPipelineState(const GraphicsPipelineStateInitializer &Initializer);
@@ -430,70 +416,13 @@ private:
 
     VkResult CreateVKPipeline(VulkanGraphicsPipelineState *PSO, VulkanShader *Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo &PipelineInfo, bool bIsPrecompileJob);
 
-    // 	static FString ShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumStages]);
-
     VulkanPipelineLayout *FindOrAddLayout(const DescriptorSetsLayoutInfo &DescriptorSetLayoutInfo, bool bGfxLayout);
     VulkanComputePipeline *CreateComputePipelineFromShader(VulkanComputeShader *Shader);
 
-    /** LRU Related functions */
-    // 	void TickLRU();
-    bool LRUEvictImmediately();
-    void LRUTrim(uint32 nSpaceNeeded);
-    void LRUAdd(VulkanGraphicsPipelineState *PSO);
-    void LRUTouch(VulkanGraphicsPipelineState *PSO);
-    // 	bool LRUEvictOne(bool bOnlyOld = false);
-    // 	void LRURemoveAll();
-    // 	void LRUDump();
-    // 	void LRUDebugEvictAll(); //evict all that are safe to evict without stalling..
-    // 	void LRURemove(FVulkanRHIGraphicsPipelineState* PSO);
-    void LRUCheckNotInside(VulkanGraphicsPipelineState *PSO);
-
     Device *device;
-    bool bEvictImmediately;
-    // 	FString CompiledPSOCacheTopFolderPath;
-    // 	FString CompiledPSOCacheFolderName;
-    // 	FDelegateHandle OnShaderPipelineCacheOpenedDelegate;
-    // 	FDelegateHandle OnShaderPipelineCachePrecompilationCompleteDelegate;
 
     // 	FRWLock ComputePipelineLock;
     std::unordered_map<uint64, VulkanComputePipeline *> ComputePipelineEntries;
-
-    // template <typename TType>
-    // class FScopedRWAccessor
-    // {
-    //     bool bWriteAccess;
-    //     TType &ProtectedObj;
-    //     FRWLock &RWLock;
-
-    // public:
-    //     FScopedRWAccessor(bool bWriteAccessIn, TType &ProtectedObjIn, FRWLock &RWLockIn) : bWriteAccess(bWriteAccessIn), ProtectedObj(ProtectedObjIn), RWLock(RWLockIn) { bWriteAccess ? RWLock.WriteLock() : RWLock.ReadLock(); }
-    //     ~FScopedRWAccessor() { bWriteAccess ? RWLock.WriteUnlock() : RWLock.ReadUnlock(); }
-    //     TType &Get() { return ProtectedObj; }
-    // };
-
-    // using FScopedPipelineCache = FScopedRWAccessor<VkPipelineCache>;
-
-    // enum class EPipelineCacheAccess : uint8
-    // {
-    //     Shared,   // 'read' access, or for use when the API does its own synchronization.
-    //     Exclusive // 'write' access, excludes all other usage for the duration.
-    // };
-    // class FPipelineCache
-    // {
-    //     VkPipelineCache PipelineCache = VK_NULL_HANDLE;
-    //     FRWLock PipelineCacheLock;
-
-    // public:
-    //     FScopedPipelineCache Get(EPipelineCacheAccess PipelineAccessType) { return FScopedPipelineCache(PipelineAccessType == EPipelineCacheAccess::Exclusive, PipelineCache, PipelineCacheLock); }
-    // };
-    // 	FPipelineCache GlobalPSOCache;		// contains all PSO caches opened during the program run as well as PSO objects created on the fly
-
-    // 	FPipelineCache CurrentPrecompilingPSOCache;
-    // if true, we will link to the PSOFC, loading later, when we have that guid and only if the guid matches, saving only if there is no match, and only saving after the PSOFC is done.
-    bool bPrecompilingCacheLoadedFromFile;
-    // 	FGuid CurrentPrecompilingPSOCacheGuid;
-
-    // 	TSet<FGuid> CompiledPSOCaches;
 
     // 	FCriticalSection LayoutMapCS;
     std::unordered_map<DescriptorSetsLayoutInfo, VulkanPipelineLayout *> LayoutMap;
@@ -502,34 +431,9 @@ private:
     // 	FCriticalSection GraphicsPSOLockedCS;
     std::unordered_map<VulkanPSOKey, VulkanGraphicsPipelineState *> GraphicsPSOLockedMap;
 
-    // 	FCriticalSection LRUCS;
-    // 	FVulkanRHIGraphicsPipelineStateLRU LRU;
-    uint32 LRUUsedPipelineSize = 0;
-    uint32 LRUUsedPipelineCount = 0;
-    uint32 LRUUsedPipelineMax = 0;
-    // 	TMap<uint64, FVulkanPipelineSize> LRU2SizeList;	// key: Shader hash (FShaderHash), value: pipeline size
-    bool bUseLRU = false;
     friend class RHI;
     friend class CommandListContext;
     friend class VulkanGraphicsPipelineState;
-
-    // 	struct FVulkanLRUCacheFile
-    // 	{
-    // 		enum
-    // 		{
-    // 			LRU_CACHE_VERSION = 2,
-    // 		};
-    // 		struct FFileHeader
-    // 		{
-    // 			int32 Version = -1;
-    // 			int32 SizeOfPipelineSizes = -1;
-    // 		} Header;
-
-    // 		TArray<FVulkanPipelineSize> PipelineSizes;
-
-    // 		void Save(FArchive& Ar);
-    // 		bool Load(FArchive& Ar);
-    // 	};
 };
 
 // Common pipeline class
@@ -624,21 +528,6 @@ public:
     VulkanShader *VulkanShaders[ShaderStage::NumStages];
     const RenderPass *RenderPass;
 
-    // FVulkanRHIGraphicsPipelineStateLRUNode *LRUNode = nullptr;
-    uint32 LRUFrame = UINT32_MAX;
-    uint32 PipelineCacheSize = UINT32_MAX;
     uint64 PrecacheKey; // hash of elements relevant to the PSO cache
     VulkanPSOKey VulkanKey;
-
-#if VULKAN_PSO_CACHE_DEBUG
-    FPixelShaderRHIRef PixelShaderRHI;
-    FVertexShaderRHIRef VertexShaderRHI;
-    FVertexDeclarationRHIRef VertexDeclarationRHI;
-
-#if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
-    FGeometryShaderRHIRef GeometryShaderRHI;
-#endif
-
-    FGraphicsPipelineStateInitializer PSOInitializer;
-#endif
 };
