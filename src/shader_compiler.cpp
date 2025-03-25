@@ -53,7 +53,9 @@ UniformBufferBaseType ParseType(spirv_cross::SPIRType type)
     case SPIRType::Float:
         return UniformBufferBaseType::UBMT_FLOAT32;
         break;
-
+    case SPIRType::UInt:
+        return UniformBufferBaseType::UBMT_UINT32;
+        break;
     default:
         exit(1);
         break;

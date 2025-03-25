@@ -22,24 +22,26 @@ void SimpleRenderer::Prepare(RHICommandListBase &immediate)
         .SetClearValue(ClearValueBinding(0, 0));
     depth = CreateTexture(immediate, texDesc);
 
+    // Per Camera UniformBuffer
     UniformBufferLayoutInitializer UBInit;
     UBInit.BindingFlags = UniformBufferBindingFlags::Shader;
-    UBInit.ConstantBufferSize = sizeof(CameraInfo);
-    UBInit.Resources.push_back({offsetof(CameraInfo, model), UniformBufferBaseType::UBMT_FLOAT32});
-    UBInit.Resources.push_back({offsetof(CameraInfo, view), UniformBufferBaseType::UBMT_FLOAT32});
-    UBInit.Resources.push_back({offsetof(CameraInfo, proj), UniformBufferBaseType::UBMT_FLOAT32});
+    UBInit.ConstantBufferSize = sizeof(PerCameraParameters);
+    UBInit.Resources.push_back({offsetof(PerCameraParameters, view), UniformBufferBaseType::UBMT_FLOAT32});
+    UBInit.Resources.push_back({offsetof(PerCameraParameters, proj), UniformBufferBaseType::UBMT_FLOAT32});
     UBInit.ComputeHash();
     auto UBLayout = std::make_shared<const UniformBufferLayout>(UBInit);
-    ub = CreateUniformBuffer(0, UBLayout, UniformBufferUsage::UniformBuffer_MultiFrame, UniformBufferValidation::None);
+    perCamera = CreateUniformBuffer(0, UBLayout, UniformBufferUsage::UniformBuffer_MultiFrame, UniformBufferValidation::None);
 }
 
-void SimpleRenderer::Update(RHICommandListBase &immediate, Camera& camera){
-    CameraInfo info = camera.GetCameraInfo();
-    rhi->UpdateUniformBuffer(immediate, ub.get(), &info);
+void SimpleRenderer::Update(RHICommandListBase &immediate, Camera &camera)
+{
+    auto cameraParameters = camera.GetCameraParameters();
+    rhi->UpdateUniformBuffer(immediate, perCamera.get(), &cameraParameters);
+
     immediate.GetContext().SubmitCommandsHint();
 }
 
-void SimpleRenderer::Render(CommandContext *context, SimpleScene &scene, Camera &camera, Viewport *viewport)
+void SimpleRenderer::Render(CommandContext *context, SimpleScene &scene, Viewport *viewport)
 {
     GraphicsPipelineStateInitializer graphicsPSOInit;
 
@@ -74,7 +76,8 @@ void SimpleRenderer::Render(CommandContext *context, SimpleScene &scene, Camera 
     {
         auto *pso = CreateGraphicsPipelineState(graphicsPSOInit);
         context->SetGraphicsPipelineState(pso, 0, false);
-        context->SetShaderUniformBuffer(graphicsPSOInit.BoundShaderState.VertexShaderRHI, 0, ub.get());
+        context->SetShaderUniformBuffer(graphicsPSOInit.BoundShaderState.VertexShaderRHI, 0, perCamera.get());
+        context->SetShaderUniformBuffer(graphicsPSOInit.BoundShaderState.PixelShaderRHI, 0, perCamera.get());
 
         context->SetStreamSource(0, mesh.LOD[0].positonBuffer.get(), 0);
         context->SetStreamSource(1, mesh.LOD[0].normalBuffer.get(), 0);

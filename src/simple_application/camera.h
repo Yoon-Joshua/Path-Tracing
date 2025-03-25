@@ -3,17 +3,13 @@
 
 #include "interaction.h"
 #include "application.h"
+#include "configuration.h"
 
-#define DEFAULT_SPEED 0.5
+#define DEFAULT_SPEED 5
 #define DEFAULT_FAR 100;
 #define DEFAULT_NEAR 0.1
 
-struct CameraInfo
-{
-    Mat4 model;
-    Mat4 view;
-    Mat4 proj;
-};
+struct PerCameraParameters;
 
 class Camera
 {
@@ -29,7 +25,10 @@ private:
 
 public:
     Camera(Vec3 pos = Vec3(0, 0, 0), float yaw = 0, float pitch = 0, float speed = DEFAULT_SPEED)
-        : position(pos), yaw(yaw), pitch(pitch), speed(speed) {}
+        : position(pos), yaw(yaw), pitch(pitch), speed(speed)
+    {
+        speed = Configuration::GetInstance().cameraSetting.speed;
+    }
 
     inline void Update(float deltaTime)
     {
@@ -72,18 +71,5 @@ public:
         }
     }
 
-    inline CameraInfo GetCameraInfo() const
-    {
-        Vec3 forward(sinf(M_PI_2 - pitch) * sinf(yaw),
-                     cosf(M_PI_2 - pitch),
-                     sinf(M_PI_2 - pitch) * cosf(yaw));
-        Vec3 up(sinf(pitch) * sinf(yaw + M_PI),
-                cosf(pitch),
-                sinf(pitch) * cosf(yaw + M_PI));
-        CameraInfo info;
-        info.model = Rotate(Mat4(1), Radians(0), Vec3(0, 0, 1));
-        info.view = Lookat(position, position + forward, up);
-        info.proj = Perspective(Radians(60), (float)WIDTH / (float)HEIGHT, far, near);
-        return info;
-    }
+    PerCameraParameters GetCameraParameters() const;
 };

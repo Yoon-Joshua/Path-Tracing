@@ -183,7 +183,7 @@ struct TextureCreateDesc : public TextureDesc
     size_t BulkDataSize = 0;
 };
 
-/// @note 在UE中，想要用TRefCountPointer 管理资源，该资源类型就必须实现 AddRef 和 Release 。但是在这里，我使用std::shared_ptr管理，好像两个方法没什么用处
+/// @note 在UE中，想要用TRefCountPointer 管理资源，该资源类型就必须实现 AddRef 和 Release。
 class RHIResource
 {
 public:

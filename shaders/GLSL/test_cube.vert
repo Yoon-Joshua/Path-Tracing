@@ -7,13 +7,13 @@ layout(location = 0) out vec3 OutNormal;
 layout(location = 1) out vec2 OutUV;
 
 layout(set = 0, binding = 0) uniform Camera{
-    mat4 model;
     mat4 view;
     mat4 proj;
 }camera;
 
 void main(){
-    gl_Position = camera.proj * camera.view * camera.model * vec4(pos, 1);
-    OutNormal = mat3(transpose(inverse(camera.model))) * normal;
+    gl_Position = camera.proj * camera.view * vec4(pos, 1);
+    // OutNormal = mat3(transpose(inverse(camera.model))) * normal;
+    OutNormal = normal;
     OutUV = gl_Position.xy / gl_Position.w;
 }

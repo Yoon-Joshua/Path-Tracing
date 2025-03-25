@@ -1,7 +1,7 @@
 #pragma once
 #include "core/math/vec.h"
 #include "RHI/RHIResources.h"
-
+#include "configuration.h"
 #include <memory>
 
 struct SimpleVertex
@@ -84,13 +84,22 @@ public:
     std::vector<SimpleMaterial> materials;
 };
 
+class RHICommandListBase;
+SimpleStaticMesh LoadWavefrontStaticMesh(std::string inputfile, RHICommandListBase &cmdList);
 class SimpleScene
 {
 public:
+    SimpleScene(RHICommandListBase &cmdList)
+    {
+        for (std::string &name : Configuration::GetInstance().meshToLoad)
+        {
+            AddStaticMesh(LoadWavefrontStaticMesh(name, cmdList));
+        }
+    }
     void AddStaticMesh(const SimpleStaticMesh &mesh)
     {
         staticMeshes.push_back(std::move(mesh));
     }
-    
+
     std::vector<SimpleStaticMesh> staticMeshes;
 };

@@ -224,10 +224,9 @@ void RunSimpleApplication(GLFWwindow *window)
     RHICommandListBase &immediate = RHICommandListExecutor::GetImmediateCommandList();
     immediate.SwitchPipeline(RHIPipeline::Graphics);
 
-    SimpleScene scene;
+    SimpleScene scene(immediate);
     SimpleRenderer renderer(scene);
     Camera camera;
-    scene.AddStaticMesh(LoadWavefrontStaticMesh("assets/cube.obj", immediate));
 
     CommandContext *context = GetDefaultContext();
     std::shared_ptr<Viewport> viewport = CreateViewport(window, WIDTH, HEIGHT, false, PixelFormat::PF_B8G8R8A8);
@@ -245,7 +244,7 @@ void RunSimpleApplication(GLFWwindow *window)
         context->BeginDrawingViewport(viewport);
         context->BeginFrame();
 
-        renderer.Render(context, scene, camera, viewport.get());
+        renderer.Render(context, scene, viewport.get());
 
         context->EndFrame();
         context->EndDrawingViewport(viewport.get(), false);
