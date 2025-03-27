@@ -6,16 +6,19 @@
 #include "renderer/mesh_pass_processor.h"
 #include "engine/mesh_batch.h"
 #include "engine/scene_view.h"
+#include "RHI/RHICommandList.h"
+
+#include "scene_visibility.h"
 
 class ViewCommands;
 class IVisibilityTaskData;
 
 /// View family plus associated transient scene textures.
 /// 渲染模块
-class CameraInfo : public Camera
+class CameraInfo : public ViewFamily
 {
 public:
-    explicit CameraInfo(const Camera &InViewFamily);
+    explicit CameraInfo(const ViewFamily &InViewFamily);
 
     inline SceneTextures &GetSceneTextures() { return sceneTextures; }
 
@@ -41,7 +44,7 @@ public:
     std::vector<bool> StaticMeshVisibilityMap;
 
     /** A map from primitive ID to a boolean visibility value. */
-	std::vector<bool> primitiveVisibilityMap;
+    std::vector<bool> primitiveVisibilityMap;
 };
 
 /// Used as the scope for scene rendering functions.
@@ -50,6 +53,14 @@ public:
 class SceneRenderer : public SceneInterface
 {
 public:
+    /******************** 润 **********************/
+    VisibilityTaskData *allocateVisibilityTaskData(RHICommandListImmediate &RHICmdList, SceneRenderer &SceneRenderer)
+    {
+        visibilityTaskData = std::make_shared<VisibilityTaskData>(RHICmdList, SceneRenderer);
+        return visibilityTaskData.get();
+    }
+    std::shared_ptr<VisibilityTaskData> visibilityTaskData = nullptr;
+    /**********************************************/
     Scene *scene = nullptr;
 
     /** The view family being rendered.  This references the Views array. */
@@ -58,11 +69,14 @@ public:
     /** The views being rendered. */
     std::vector<ViewInfo> Views;
 
-    SceneRenderer(const Camera *InViewFamily);
+    SceneRenderer(const ViewFamily *InViewFamily);
     ~SceneRenderer();
-    /** Creates multiple scene renderers based on the current feature level.  All view families must point to the same Scene. */
-    static void CreateSceneRenderers(std::vector<const Camera *>, std::vector<SceneRenderer *> &out);
+    /// @brief 创建一个SceneRenderer
+    static void CreateSceneRenderers(std::vector<const ViewFamily *>, std::vector<SceneRenderer *> &);
+    static void RenderBegin(RHICommandListImmediate &RHICmdList, const std::vector<SceneRenderer *> &SceneRenderers);
+    static void RenderEnd(RHICommandListImmediate &RHICmdList, const std::vector<SceneRenderer *> &SceneRenderers);
 
+    /** Determines which primitives are visible for each view. */
     void BeginInitViews(IVisibilityTaskData *VisibilityTaskData);
     void BeginInitViews(ExclusiveDepthStencil::Type);
     void EndInitViews();

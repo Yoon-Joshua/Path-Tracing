@@ -10,5 +10,5 @@ class RendererModule final : public IRendererModule
 public:
     RendererModule() = default;
 
-    void BeginRenderingViewFamily(Camera *ViewFamily);
+    void BeginRenderingViewFamily(ViewFamily *ViewFamily);
 };

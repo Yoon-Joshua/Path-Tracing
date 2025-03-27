@@ -34,25 +34,25 @@ class VisibilityViewPacket;
 class RHICommandListImmediate;
 class SceneRenderer;
 
-class VisibilityViewPacket
-{
-public:
-    VisibilityViewPacket(VisibilityTaskData &TaskData, Scene &InScene, ViewInfo &InView, int32 ViewIndex);
-};
-
+/*
+此类管理与特定场景渲染器关联的所有视图的可见性计算相关的所有状态。
+在并行模式下，复杂的任务图处理每个可见性阶段，并将结果从一个阶段流水线到下一个阶段。
+这避免了主要的连接/分叉同步点，除了当前仅限于渲染线程的动态网格元素收集。
+对于不受益于并行性或不支持并行性的平台，还支持以渲染线程为中心的模式，该模式通过一些并行来处理渲染线程上的可见性，以获得任务线程的支持。
+*/
 class VisibilityTaskData : public IVisibilityTaskData
 {
 private:
     RHICommandListImmediate &RHICmdList;
     SceneRenderer &sceneRenderer;
     Scene &scene;
-    std::vector<ViewInfo *> Views;
-    std::vector<VisibilityViewPacket> ViewPackets;
+    std::vector<ViewInfo *> views;
+    std::vector<VisibilityViewPacket> viewPackets;
 
     struct DynamicMeshElements
     {
-        std::vector<ViewCommands> ViewCommandsPerView;
-    } DynamicMeshElements;
+        std::vector<ViewCommands> viewCommandsPerView;
+    } dynamicMeshElements;
 
     struct Tasks
     { // These legacy tasks are used to interface with the jobs launched prior to gather dynamic mesh elements.

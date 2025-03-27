@@ -9,15 +9,16 @@
 #include "renderer_module.h"
 #include "scene_private.h"
 #include "scene_visibility.h"
+#include "my_renderer.h"
 #include <memory>
 #include <array>
 
-CameraInfo::CameraInfo(const Camera &InViewFamily) : Camera(InViewFamily)
+CameraInfo::CameraInfo(const ViewFamily &InViewFamily) : ViewFamily(InViewFamily)
 {
     bIsViewFamilyInfo = true;
 }
 
-SceneRenderer::SceneRenderer(const Camera *InViewFamily) : camera(*InViewFamily)
+SceneRenderer::SceneRenderer(const ViewFamily *InViewFamily) : camera(*InViewFamily)
 {
     AllViews.resize(InViewFamily->views.size());
     for (auto &viewInfo : AllViews)
@@ -34,21 +35,25 @@ SceneRenderer::~SceneRenderer()
     }
 }
 
-void SceneRenderer::CreateSceneRenderers(std::vector<const Camera *> InViewFamilies, std::vector<SceneRenderer *> &out)
+void SceneRenderer::CreateSceneRenderers(std::vector<const ViewFamily *> inViewFamilies, std::vector<SceneRenderer *> &outSceneRenderers)
 {
-    const SceneInterface *scene = InViewFamilies[0]->scene;
+    check(outSceneRenderers.size() == 0);
+
+    if (!inViewFamilies.size())
+        return;
+
+    const SceneInterface *scene = inViewFamilies[0]->scene;
     check(scene);
-    for (int32 FamilyIndex = 0; FamilyIndex < InViewFamilies.size(); FamilyIndex++)
+    for (int32 familyIndex = 0; familyIndex < inViewFamilies.size(); familyIndex++)
     {
-        const Camera *InViewFamily = InViewFamilies[FamilyIndex];
-        check(InViewFamily);
-        check(InViewFamily->scene == scene);
-        auto renderer = new SceneRenderer(InViewFamily);
-        out.push_back(renderer);
+        const ViewFamily *inViewFamily = inViewFamilies[familyIndex];
+        check(inViewFamily);
+        check(inViewFamily->scene == scene);
+        outSceneRenderers.push_back(new MySceneRenderer(inViewFamily));
     }
 }
 
-void SceneRenderer::BeginInitViews(IVisibilityTaskData *VisibilityTaskData)
+void SceneRenderer::BeginInitViews(IVisibilityTaskData *visibilityTaskData)
 {
     check(0);
 }
@@ -84,7 +89,7 @@ void SceneRenderer::SetupMeshPass(ViewInfo &View, ExclusiveDepthStencil::Type Ba
 
 void SceneRenderer::Render(RHICommandListImmediate &RHICmdList)
 {
-    // IVisibilityTaskData *VisibilityTaskData = OnRenderBegin(RHICmdList);
+    IVisibilityTaskData *visibilityTaskData = OnRenderBegin(RHICmdList);
     //  CommitFinalPipelineState
     //  GSystemTextures.InitializeTextures
     //  FSceneTextures::InitializeViewFamily
@@ -150,37 +155,55 @@ void SceneRenderer::Render(RHICommandListImmediate &RHICmdList)
 /// @todo 未完成 太难了
 IVisibilityTaskData *SceneRenderer::OnRenderBegin(RHICommandListImmediate &RHICmdList)
 {
-    IVisibilityTaskData *VisibilityTaskData = nullptr;
+    IVisibilityTaskData *visibilityTaskData = nullptr;
 
-    Scene::UpdateParameters SceneUpdateParameters;
-    SceneUpdateParameters.Callbacks.PostStaticMeshUpdate = [&](std::function<void()> &StaticMeshUpdateTask)
+    Scene::UpdateParameters sceneUpdateParameters;
+    sceneUpdateParameters.callbacks.postStaticMeshUpdate = [&](std::function<void()> StaticMeshUpdateTask)
     {
-        VisibilityTaskData = LaunchVisibilityTasks(RHICmdList, *this, StaticMeshUpdateTask);
+        visibilityTaskData = LaunchVisibilityTasks(RHICmdList, *this, StaticMeshUpdateTask);
     };
 
-    return VisibilityTaskData;
+    scene->Update(sceneUpdateParameters);
+
+    return visibilityTaskData;
+}
+
+void SceneRenderer::RenderBegin(RHICommandListImmediate &RHICmdList, const std::vector<SceneRenderer *> &SceneRenderers)
+{
+    // printf("Render Begin\n");
+}
+void SceneRenderer::RenderEnd(RHICommandListImmediate &RHICmdList, const std::vector<SceneRenderer *> &SceneRenderers)
+{
+    // printf("Render End\n");
 }
 
 /// Helper function performing actual work in render thread.
 /// @param SceneRenderers	List of scene renderers to use for rendering.
 static void RenderViewFamilies(RHICommandListImmediate &RHICmdList, const std::vector<SceneRenderer *> &SceneRenderers)
 {
+    // All renderers point to the same Scene (calling code asserts this)
+    Scene *const Scene = SceneRenderers[0]->scene;
+
+    SceneRenderer::RenderBegin(RHICmdList, SceneRenderers);
     for (SceneRenderer *sceneRenderer : SceneRenderers)
     {
         sceneRenderer->Render(RHICmdList);
     }
+    SceneRenderer::RenderEnd(RHICmdList, SceneRenderers);
 }
 
-void RendererModule::BeginRenderingViewFamily(Camera *ViewFamily)
+void RendererModule::BeginRenderingViewFamily(ViewFamily *viewFamily)
 {
-    Scene *const scene = (Scene *)ViewFamily->scene;
+    Scene *const scene = (Scene *)viewFamily->scene;
 
     if (scene)
     {
+        std::vector<const ViewFamily *> viewFamiliesConst = {viewFamily};
+        // Construct the scene renderers.  This copies the view family attributes into its own structures.
         std::vector<SceneRenderer *> sceneRenderers;
-        std::vector<const Camera *> ViewFamiliesConst;
-        ViewFamiliesConst.push_back(ViewFamily);
-        SceneRenderer::CreateSceneRenderers(ViewFamiliesConst, sceneRenderers);
+        SceneRenderer::CreateSceneRenderers(viewFamiliesConst, sceneRenderers);
         RenderViewFamilies(GRHICommandListExecutor.GetImmediateCommandList(), sceneRenderers);
+
+        // RHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
     }
 }

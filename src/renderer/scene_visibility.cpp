@@ -1,6 +1,7 @@
 #include "scene_visibility.h"
 #include "scene_rendering.h"
 #include "scene_private.h"
+#include "scene_visibility_private.h"
 #include "engine/primitive_view_relevance.h"
 #include "engine/classes/components/primitive_component.h"
 #include "engine/static_mesh_batch.h"
@@ -8,31 +9,33 @@
 
 const bool UseCachedCommands = true;
 
-IVisibilityTaskData *LaunchVisibilityTasks(RHICommandListImmediate &RHICmdList, SceneRenderer &SceneRenderer, std::function<void()> &BeginInitVisibilityTaskPrerequisites)
+///////////////////////////////////////////////////////////////////////////////
+IVisibilityTaskData *LaunchVisibilityTasks(RHICommandListImmediate &RHICmdList, SceneRenderer &sceneRenderer, std::function<void()> &BeginInitVisibilityTaskPrerequisites)
 {
-    VisibilityTaskData *TaskData = new VisibilityTaskData(RHICmdList, SceneRenderer);
-    TaskData->LaunchVisibilityTasks(BeginInitVisibilityTaskPrerequisites);
-    return TaskData;
+    VisibilityTaskData *taskData = sceneRenderer.allocateVisibilityTaskData(RHICmdList, sceneRenderer);
+    taskData->LaunchVisibilityTasks(BeginInitVisibilityTaskPrerequisites);
+    return taskData;
 }
+///////////////////////////////////////////////////////////////////////////////
 
 VisibilityViewPacket::VisibilityViewPacket(VisibilityTaskData &TaskData, Scene &InScene, ViewInfo &InView, int32 ViewIndex)
 {
 }
 
 VisibilityTaskData::VisibilityTaskData(RHICommandListImmediate &RHICmdList, SceneRenderer &SceneRenderer)
-    : RHICmdList(RHICmdList), sceneRenderer(SceneRenderer), Views(SceneRenderer.AllViews), scene(*sceneRenderer.scene)
+    : RHICmdList(RHICmdList), sceneRenderer(SceneRenderer), views(SceneRenderer.AllViews), scene(*sceneRenderer.scene)
 {
 }
 
 void VisibilityTaskData::LaunchVisibilityTasks(std::function<void()> &BeginInitVisibilityPrerequisites)
 {
-    for (int32 ViewIndex = 0; ViewIndex < Views.size(); ++ViewIndex)
+    for (int32 ViewIndex = 0; ViewIndex < views.size(); ++ViewIndex)
     {
         // Each view gets its own visibility task packet which contains all the state to manage the task graph for a view.
-        ViewPackets.push_back(VisibilityViewPacket(*this, scene, *Views[ViewIndex], ViewIndex));
+        viewPackets.push_back(VisibilityViewPacket(*this, scene, *views[ViewIndex], ViewIndex));
     }
 
-    DynamicMeshElements.ViewCommandsPerView.resize(Views.size());
+    dynamicMeshElements.viewCommandsPerView.resize(views.size());
 }
 ///////////////////////////////////////////////////////////////////////////////////
 struct DrawCommandRelevancePacket

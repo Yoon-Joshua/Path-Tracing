@@ -22,14 +22,16 @@ public:
     {
         struct
         {
-            std::function<void(std::function<void()> &)> PostStaticMeshUpdate;
+            std::function<void(std::function<void()>)> postStaticMeshUpdate;
 
-        } Callbacks;
+        } callbacks;
     };
 
     /** Initialization constructor. */
     Scene();
     virtual ~Scene();
+
+    void Update(const UpdateParameters& parameters);
 
     // interface
     void AddPrimitive(std::shared_ptr<PrimitiveComponent> Primitive);
